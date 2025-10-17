@@ -56,7 +56,6 @@ export default function GameLobbyPage() {
       if (!gameId) {
         throw new Error('Game ID not found in response');
       }
-      console.log('Created game with ID:', gameId);
       navigate(`/games/${gameId}`);
     } catch (error: any) {
       console.error('Failed to create game:', error);
@@ -74,7 +73,6 @@ export default function GameLobbyPage() {
       if (!gameId) {
         throw new Error('Game ID not found in response');
       }
-      console.log('Found/created random match with ID:', gameId);
       navigate(`/games/${gameId}`);
     } catch (error: any) {
       console.error('Failed to find random match:', error);
@@ -86,7 +84,6 @@ export default function GameLobbyPage() {
 
   const handleJoinGame = async (gameId: string) => {
     try {
-      console.log('Joining game with ID:', gameId);
       await gamesAPI.joinGame(gameId);
       navigate(`/games/${gameId}`);
     } catch (error: any) {

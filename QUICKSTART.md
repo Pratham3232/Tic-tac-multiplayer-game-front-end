@@ -20,23 +20,27 @@ npm run dev
 
 The frontend will be at: http://localhost:5173
 
-### Step 3: Play Chess!
+### Step 3: Play Tic-Tac-Toe!
 1. Open http://localhost:5173
 2. Click "Register" and create an account
 3. Go to "Games"
-4. Click "Create Game"
+4. Click "Create Game" OR "Find Random Match"
 5. Open another browser/incognito window
 6. Register another user
-7. Join the game
-8. Play chess in real-time!
+7. Join the game (or also click "Find Random Match")
+8. Play tic-tac-toe in real-time!
 
 ## That's It! 🎉
 
-You now have a fully functional chess platform with:
-- ✅ Real-time gameplay
-- ✅ WebSocket communication
+You now have a fully functional tic-tac-toe platform with:
+- ✅ Real-time gameplay (0.5s polling + WebSocket)
+- ✅ Rating system (+200/-100, min 0)
+- ✅ Random matchmaking (±100 rating)
+- ✅ Game search by name
+- ✅ Top 5 leaderboard (live)
+- ✅ Real-time rating updates
 - ✅ User authentication
-- ✅ Interactive chess board
+- ✅ Interactive 3x3 board
 - ✅ Live chat
 - ✅ Move history
 

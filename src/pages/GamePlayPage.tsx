@@ -18,30 +18,21 @@ export default function GamePlayPage() {
   useEffect(() => {
     if (!gameId) return;
     
-    // Setup listeners FIRST before joining the game
-    socketService.onGameUpdate((updatedGame) => {      console.log('\ud83c\udfae Game Update Received:', updatedGame);
-      console.log('\ud83d\udcca Previous board:', board);
+    socketService.onGameUpdate((updatedGame) => {
       setGame(updatedGame);
       
-      // Parse and update board state
       if (updatedGame.currentPosition) {
         try {
-          // Try parsing as JSON array
           const positions = JSON.parse(updatedGame.currentPosition);
-          console.log('\ud83d\udcca New board positions:', positions);
           if (Array.isArray(positions) && positions.length === 9) {
             setBoard(positions);
-            console.log('\u2705 Board updated successfully');
           } else {
-            console.warn('Invalid board format, using empty board');
             setBoard(Array(9).fill(null));
           }
         } catch (error) {
-          console.log('\u26a0\ufe0f Failed to parse position, initializing empty board');
           setBoard(Array(9).fill(null));
         }
       } else {
-        // No position yet, initialize empty board
         setBoard(Array(9).fill(null));
       }
     });
@@ -56,15 +47,12 @@ export default function GamePlayPage() {
     // Load initial game data
     loadGame();
 
-    // Set up polling to fetch game state every 1 second as fallback
     const pollingInterval = setInterval(async () => {
       if (!gameId) return;
       
       try {
         const gameData = await gamesAPI.getGame(gameId);
-        console.log('🔄 Polling: Fetched game data');
         
-        // Only update if game is still in progress or just completed
         if (gameData && (gameData.status === 'in_progress' || gameData.status === 'completed')) {
           setGame(gameData);
           
@@ -75,27 +63,25 @@ export default function GamePlayPage() {
                 setBoard(positions);
               }
             } catch (error) {
-              console.error('Polling: Failed to parse board:', error);
+              console.error('Failed to parse board:', error);
             }
           }
         }
         
-        // Stop polling if game is completed
         if (gameData.status === 'completed') {
-          console.log('🏁 Game completed, stopping polling');
           clearInterval(pollingInterval);
         }
       } catch (error) {
         console.error('Polling error:', error);
       }
-    }, 500); // Poll every 0.5 seconds
+    }, 500);
 
     return () => {
       if (gameId) {
         socketService.leaveGame(gameId);
       }
       socketService.removeAllListeners();
-      clearInterval(pollingInterval); // Clean up polling interval
+      clearInterval(pollingInterval);
     };
   }, [gameId]);
 
@@ -104,25 +90,20 @@ export default function GamePlayPage() {
     
     try {
       const gameData = await gamesAPI.getGame(gameId);
-      console.log('📥 Loaded game data:', gameData);
       setGame(gameData);
       
       if (gameData.currentPosition) {
         try {
           const positions = JSON.parse(gameData.currentPosition);
-          console.log('📊 Initial board positions:', positions);
           if (Array.isArray(positions) && positions.length === 9) {
             setBoard(positions);
           } else {
-            console.warn('Invalid board format, using empty board');
             setBoard(Array(9).fill(null));
           }
         } catch (error) {
-          console.error('Failed to parse board:', error);
           setBoard(Array(9).fill(null));
         }
       } else {
-        // Initialize empty board for new games
         setBoard(Array(9).fill(null));
       }
     } catch (error) {
@@ -135,25 +116,11 @@ export default function GamePlayPage() {
   };
 
   const handleCellClick = async (index: number) => {
-    console.log(`🖱️ Cell ${index} clicked`);
-    if (!game || !gameId) {
-      console.log('❌ No game or gameId');
-      return;
-    }
+    if (!game || !gameId) return;
     
-    console.log('📊 Current board state:', board);
-    console.log('🎮 Game status:', game.status);
+    if (board[index]) return;
     
-    // Prevent multiple moves
-    if (board[index]) {
-      console.log('❌ Cell already occupied');
-      return;
-    }
-    
-    if (game.status !== 'in_progress') {
-      console.log('❌ Game not in progress, status:', game.status);
-      return;
-    }
+    if (game.status !== 'in_progress') return;
 
     // Check if it's the player's turn
     const userId = user?.id || user?._id;
@@ -163,27 +130,15 @@ export default function GamePlayPage() {
     const isPlayerX = whitePlayerId === userId;
     const isPlayerO = blackPlayerId === userId;
     
-    // X = white player, O = black player
-    if (game.currentTurn === 'white' && !isPlayerX) {
-      console.log('❌ Not your turn - waiting for X');
-      return;
-    }
-    
-    if (game.currentTurn === 'black' && !isPlayerO) {
-      console.log('❌ Not your turn - waiting for O');
-      return;
-    }
+    if (game.currentTurn === 'white' && !isPlayerX) return;
+    if (game.currentTurn === 'black' && !isPlayerO) return;
 
     const currentSymbol = game.currentTurn === 'white' ? 'X' : 'O';
     
-    console.log(`✅ Making move: ${currentSymbol} at cell ${index}`);
-    
-    // Optimistic UI update - show the move immediately
     const newBoard = [...board];
     newBoard[index] = currentSymbol;
     setBoard(newBoard);
     
-    // Make the move via WebSocket
     socketService.makeMove(gameId, {
       from: index.toString(),
       to: index.toString(),

@@ -94,21 +94,15 @@ export const authAPI = {
 export const gamesAPI = {
   createGame: async (gameData: CreateGameDto): Promise<Game> => {
     const { data } = await api.post('/games', gameData);
-    console.log('🎮 Create Game Response:', data);
     const unwrapped = unwrapResponse(data);
-    console.log('🎮 Unwrapped:', unwrapped);
     const normalized = normalizeGame(unwrapped);
-    console.log('🎮 Normalized Game:', normalized);
     return normalized;
   },
 
   getActiveGames: async (): Promise<Game[]> => {
     const { data } = await api.get('/games');
-    console.log('🎮 Get Active Games Response:', data);
     const unwrapped = unwrapResponse(data);
-    console.log('🎮 Unwrapped:', unwrapped);
     const normalized = Array.isArray(unwrapped) ? unwrapped.map(normalizeGame) : [];
-    console.log('🎮 Normalized Games:', normalized);
     return normalized;
   },
 
@@ -137,13 +131,9 @@ export const gamesAPI = {
   },
 
   joinGame: async (id: string): Promise<Game> => {
-    console.log('🎮 Joining game with ID:', id);
     const { data} = await api.post(`/games/${id}/join`);
-    console.log('🎮 Join Game Response:', data);
     const unwrapped = unwrapResponse(data);
-    console.log('🎮 Unwrapped:', unwrapped);
     const normalized = normalizeGame(unwrapped);
-    console.log('🎮 Normalized Game:', normalized);
     return normalized;
   },
 
