@@ -17,19 +17,10 @@ export default function GamePlayPage() {
 
   useEffect(() => {
     if (!gameId) return;
-
-    loadGame();
     
-    // Connect socket
-    const token = localStorage.getItem('token');
-    if (token) {
-      socketService.connect(token);
-      socketService.joinGame(gameId);
-    }
-
-    // Setup listeners
-    socketService.onGameUpdate((updatedGame) => {
-      console.log('🎮 Game Update Received:', updatedGame);
+    // Setup listeners FIRST before joining the game
+    socketService.onGameUpdate((updatedGame) => {      console.log('\ud83c\udfae Game Update Received:', updatedGame);
+      console.log('\ud83d\udcca Previous board:', board);
       setGame(updatedGame);
       
       // Parse and update board state
@@ -37,15 +28,16 @@ export default function GamePlayPage() {
         try {
           // Try parsing as JSON array
           const positions = JSON.parse(updatedGame.currentPosition);
-          console.log('📊 Parsed board positions:', positions);
+          console.log('\ud83d\udcca New board positions:', positions);
           if (Array.isArray(positions) && positions.length === 9) {
             setBoard(positions);
+            console.log('\u2705 Board updated successfully');
           } else {
             console.warn('Invalid board format, using empty board');
             setBoard(Array(9).fill(null));
           }
         } catch (error) {
-          console.log('⚠️ Failed to parse position, initializing empty board');
+          console.log('\u26a0\ufe0f Failed to parse position, initializing empty board');
           setBoard(Array(9).fill(null));
         }
       } else {
@@ -57,12 +49,53 @@ export default function GamePlayPage() {
     socketService.onChatMessage((msg) => {
       setMessages(prev => [...prev, msg]);
     });
+    
+    // Join the game room AFTER listeners are set up
+    socketService.joinGame(gameId);
+    
+    // Load initial game data
+    loadGame();
+
+    // Set up polling to fetch game state every 1 second as fallback
+    const pollingInterval = setInterval(async () => {
+      if (!gameId) return;
+      
+      try {
+        const gameData = await gamesAPI.getGame(gameId);
+        console.log('🔄 Polling: Fetched game data');
+        
+        // Only update if game is still in progress or just completed
+        if (gameData && (gameData.status === 'in_progress' || gameData.status === 'completed')) {
+          setGame(gameData);
+          
+          if (gameData.currentPosition) {
+            try {
+              const positions = JSON.parse(gameData.currentPosition);
+              if (Array.isArray(positions) && positions.length === 9) {
+                setBoard(positions);
+              }
+            } catch (error) {
+              console.error('Polling: Failed to parse board:', error);
+            }
+          }
+        }
+        
+        // Stop polling if game is completed
+        if (gameData.status === 'completed') {
+          console.log('🏁 Game completed, stopping polling');
+          clearInterval(pollingInterval);
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 1000); // Poll every 1 second
 
     return () => {
       if (gameId) {
         socketService.leaveGame(gameId);
       }
       socketService.removeAllListeners();
+      clearInterval(pollingInterval); // Clean up polling interval
     };
   }, [gameId]);
 
@@ -145,8 +178,12 @@ export default function GamePlayPage() {
     
     console.log(`✅ Making move: ${currentSymbol} at cell ${index}`);
     
-    // Make the move via WebSocket - DON'T update optimistically
-    // Wait for server to confirm and broadcast the update
+    // Optimistic UI update - show the move immediately
+    const newBoard = [...board];
+    newBoard[index] = currentSymbol;
+    setBoard(newBoard);
+    
+    // Make the move via WebSocket
     socketService.makeMove(gameId, {
       from: index.toString(),
       to: index.toString(),

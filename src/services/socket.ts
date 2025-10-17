@@ -44,6 +44,7 @@ class SocketService {
 
   // Game events
   joinGame(gameId: string): void {
+    console.log('🚪 Joining game room:', gameId, 'Socket connected:', this.socket?.connected);
     this.socket?.emit('joinGame', { gameId });
   }
 
@@ -62,11 +63,20 @@ class SocketService {
 
   // Event listeners
   onGameUpdate(callback: (game: Game) => void): void {
+    // Remove existing listeners first to avoid duplicates
+    this.socket?.off('gameUpdate');
+    this.socket?.off('gameUpdated');
+    
     // Listen to both 'gameUpdate' and 'gameUpdated' events (backend inconsistency)
-    this.socket?.on('gameUpdate', callback);
-    this.socket?.on('gameUpdated', callback);
-    this.addListener('gameUpdate', callback);
-    this.addListener('gameUpdated', callback);
+    const wrappedCallback = (game: Game) => {
+      console.log('🔔 Received gameUpdate/gameUpdated event:', game);
+      callback(game);
+    };
+    
+    this.socket?.on('gameUpdate', wrappedCallback);
+    this.socket?.on('gameUpdated', wrappedCallback);
+    this.addListener('gameUpdate', wrappedCallback);
+    this.addListener('gameUpdated', wrappedCallback);
   }
 
   onPlayerJoined(callback: (data: { playerId: string; username: string }) => void): void {

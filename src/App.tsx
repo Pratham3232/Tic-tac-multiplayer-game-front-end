@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useAuthStore } from './store/authStore';
+import socketService from './services/socket';
 import Header from './components/Layout/Header';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -19,6 +21,16 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 function App() {
+  const { isAuthenticated, token } = useAuthStore();
+  
+  // Initialize socket connection if user is already logged in
+  useEffect(() => {
+    if (isAuthenticated && token && !socketService.isConnected()) {
+      console.log('🔌 Initializing socket connection for authenticated user');
+      socketService.connect(token);
+    }
+  }, [isAuthenticated, token]);
+  
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
