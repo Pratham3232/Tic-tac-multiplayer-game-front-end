@@ -11,6 +11,32 @@ import type {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// Helper functions to normalize MongoDB _id to id
+const normalizeUser = (user: any): User => {
+  if (!user) return user;
+  return {
+    ...user,
+    id: user.id || user._id,
+    _id: user._id || user.id,
+  };
+};
+
+const normalizeGame = (game: any): Game => {
+  if (!game) return game;
+  return {
+    ...game,
+    id: game.id || game._id,
+    _id: game._id || game.id,
+    whitePlayer: typeof game.whitePlayer === 'object' ? normalizeUser(game.whitePlayer) : game.whitePlayer,
+    blackPlayer: typeof game.blackPlayer === 'object' ? normalizeUser(game.blackPlayer) : game.blackPlayer,
+  };
+};
+
+const unwrapResponse = (response: any) => {
+  // Backend wraps responses in { data: {...} }
+  return response.data || response;
+};
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -42,78 +68,97 @@ api.interceptors.response.use(
 export const authAPI = {
   register: async (credentials: RegisterCredentials): Promise<AuthResponse> => {
     const { data } = await api.post('/auth/register', credentials);
-    // Unwrap the response - backend wraps in { data: { accessToken, user } }
-    return data.data || data;
+    const unwrapped = unwrapResponse(data);
+    return {
+      accessToken: unwrapped.accessToken,
+      user: normalizeUser(unwrapped.user),
+    };
   },
 
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     const { data } = await api.post('/auth/login', credentials);
-    // Unwrap the response - backend wraps in { data: { accessToken, user } }
-    return data.data || data;
+    const unwrapped = unwrapResponse(data);
+    return {
+      accessToken: unwrapped.accessToken,
+      user: normalizeUser(unwrapped.user),
+    };
   },
 
   getProfile: async (): Promise<User> => {
     const { data } = await api.get('/auth/profile');
-    // Unwrap the response - backend wraps in { data: { user } }
-    return data.data || data;
+    const unwrapped = unwrapResponse(data);
+    return normalizeUser(unwrapped);
   },
 };
 
 export const gamesAPI = {
   createGame: async (gameData: CreateGameDto): Promise<Game> => {
     const { data } = await api.post('/games', gameData);
-    // Unwrap the response - backend wraps in { data: { game } }
-    return data.data || data;
+    console.log('🎮 Create Game Response:', data);
+    const unwrapped = unwrapResponse(data);
+    console.log('🎮 Unwrapped:', unwrapped);
+    const normalized = normalizeGame(unwrapped);
+    console.log('🎮 Normalized Game:', normalized);
+    return normalized;
   },
 
   getActiveGames: async (): Promise<Game[]> => {
     const { data } = await api.get('/games');
-    // Unwrap the response - backend wraps in { data: [ games ] }
-    return data.data || data;
+    console.log('🎮 Get Active Games Response:', data);
+    const unwrapped = unwrapResponse(data);
+    console.log('🎮 Unwrapped:', unwrapped);
+    const normalized = Array.isArray(unwrapped) ? unwrapped.map(normalizeGame) : [];
+    console.log('🎮 Normalized Games:', normalized);
+    return normalized;
   },
 
   getGame: async (id: string): Promise<Game> => {
     const { data } = await api.get(`/games/${id}`);
-    // Unwrap the response - backend wraps in { data: { game } }
-    return data.data || data;
+    const unwrapped = unwrapResponse(data);
+    return normalizeGame(unwrapped);
   },
 
   getUserGames: async (userId: string): Promise<Game[]> => {
     const { data } = await api.get(`/users/${userId}/games`);
-    // Unwrap the response - backend wraps in { data: [ games ] }
-    return data.data || data;
+    const unwrapped = unwrapResponse(data);
+    return Array.isArray(unwrapped) ? unwrapped.map(normalizeGame) : [];
   },
 
   joinGame: async (id: string): Promise<Game> => {
+    console.log('🎮 Joining game with ID:', id);
     const { data} = await api.post(`/games/${id}/join`);
-    // Unwrap the response - backend wraps in { data: { game } }
-    return data.data || data;
+    console.log('🎮 Join Game Response:', data);
+    const unwrapped = unwrapResponse(data);
+    console.log('🎮 Unwrapped:', unwrapped);
+    const normalized = normalizeGame(unwrapped);
+    console.log('🎮 Normalized Game:', normalized);
+    return normalized;
   },
 
   makeMove: async (id: string, move: MakeMoveDto): Promise<Game> => {
     const { data } = await api.post(`/games/${id}/moves`, move);
-    // Unwrap the response - backend wraps in { data: { game } }
-    return data.data || data;
+    const unwrapped = unwrapResponse(data);
+    return normalizeGame(unwrapped);
   },
 
   abandonGame: async (id: string): Promise<Game> => {
     const { data } = await api.post(`/games/${id}/abandon`);
-    // Unwrap the response - backend wraps in { data: { game } }
-    return data.data || data;
+    const unwrapped = unwrapResponse(data);
+    return normalizeGame(unwrapped);
   },
 };
 
 export const usersAPI = {
   getUser: async (id: string): Promise<User> => {
     const { data } = await api.get(`/users/${id}`);
-    // Unwrap the response - backend wraps in { data: { user } }
-    return data.data || data;
+    const unwrapped = unwrapResponse(data);
+    return normalizeUser(unwrapped);
   },
 
   getAllUsers: async (): Promise<User[]> => {
     const { data } = await api.get('/users');
-    // Unwrap the response - backend wraps in { data: [ users ] }
-    return data.data || data;
+    const unwrapped = unwrapResponse(data);
+    return Array.isArray(unwrapped) ? unwrapped.map(normalizeUser) : [];
   },
 };
 

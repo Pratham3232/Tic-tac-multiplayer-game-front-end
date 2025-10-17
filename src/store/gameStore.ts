@@ -11,6 +11,11 @@ interface GameState {
   updateGame: (game: Game) => void;
 }
 
+// Helper to get game ID (supports both _id and id)
+const getGameId = (game: Game | null): string | undefined => {
+  return game?.id || game?._id;
+};
+
 export const useGameStore = create<GameState>((set) => ({
   currentGame: null,
   activeGames: [],
@@ -29,10 +34,11 @@ export const useGameStore = create<GameState>((set) => ({
   },
   
   updateGame: (game: Game) => {
+    const gameId = getGameId(game);
     set((state) => ({
-      currentGame: state.currentGame?.id === game.id ? game : state.currentGame,
-      activeGames: state.activeGames.map(g => g.id === game.id ? game : g),
-      userGames: state.userGames.map(g => g.id === game.id ? game : g),
+      currentGame: getGameId(state.currentGame) === gameId ? game : state.currentGame,
+      activeGames: state.activeGames.map(g => getGameId(g) === gameId ? game : g),
+      userGames: state.userGames.map(g => getGameId(g) === gameId ? game : g),
     }));
   },
 }));

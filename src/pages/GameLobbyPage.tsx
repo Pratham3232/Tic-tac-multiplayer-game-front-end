@@ -34,9 +34,15 @@ export default function GameLobbyPage() {
         timeControlMinutes: timeControl.minutes,
         timeIncrementSeconds: timeControl.increment,
       });
-      navigate(`/games/${game.id}`);
+      const gameId = game.id || game._id;
+      if (!gameId) {
+        throw new Error('Game ID not found in response');
+      }
+      console.log('Created game with ID:', gameId);
+      navigate(`/games/${gameId}`);
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to create game');
+      console.error('Failed to create game:', error);
+      alert(error.response?.data?.message || error.message || 'Failed to create game');
     } finally {
       setCreating(false);
     }
@@ -44,10 +50,12 @@ export default function GameLobbyPage() {
 
   const handleJoinGame = async (gameId: string) => {
     try {
+      console.log('Joining game with ID:', gameId);
       await gamesAPI.joinGame(gameId);
       navigate(`/games/${gameId}`);
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to join game');
+      console.error('Failed to join game:', error);
+      alert(error.response?.data?.message || error.message || 'Failed to join game');
     }
   };
 
@@ -137,54 +145,58 @@ export default function GameLobbyPage() {
           </p>
         ) : (
           <div className="space-y-3">
-            {activeGames.map((game) => (
-              <div
-                key={game.id}
-                className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <div className="font-semibold">
-                        {getUsername(game.whitePlayer)} ({getRating(game.whitePlayer)})
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        vs {getUsername(game.blackPlayer)}
-                        {game.blackPlayer && ` (${getRating(game.blackPlayer)})`}
+            {activeGames.map((game) => {
+              const gameId = game.id || game._id;
+              const whitePlayerId = typeof game.whitePlayer === 'object' ? (game.whitePlayer.id || game.whitePlayer._id) : undefined;
+              const blackPlayerId = typeof game.blackPlayer === 'object' ? (game.blackPlayer.id || game.blackPlayer._id) : undefined;
+              const userId = user?.id || user?._id;
+
+              return (
+                <div
+                  key={gameId}
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <div className="font-semibold">
+                          {getUsername(game.whitePlayer)} ({getRating(game.whitePlayer)})
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          vs {getUsername(game.blackPlayer)}
+                          {game.blackPlayer && ` (${getRating(game.blackPlayer)})`}
+                        </div>
                       </div>
                     </div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {Math.floor(game.timeControlInitial / 60000)}+
+                      {game.timeControlIncrement / 1000} • {game.status}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-500 mt-1">
-                    {Math.floor(game.timeControlInitial / 60000)}+
-                    {game.timeControlIncrement / 1000} • {game.status}
-                  </div>
-                </div>
 
-                {game.status === 'waiting' && (
-                  <button
-                    onClick={() => handleJoinGame(game.id)}
-                    className="btn btn-primary"
-                    disabled={
-                      typeof game.whitePlayer === 'object' && 
-                      game.whitePlayer.id === user?.id
-                    }
-                  >
-                    Join Game
-                  </button>
-                )}
-
-                {game.status === 'in_progress' &&
-                  ((typeof game.whitePlayer === 'object' && game.whitePlayer.id === user?.id) ||
-                    (typeof game.blackPlayer === 'object' && game.blackPlayer.id === user?.id)) && (
+                  {game.status === 'waiting' && gameId && (
                     <button
-                      onClick={() => navigate(`/games/${game.id}`)}
+                      onClick={() => handleJoinGame(gameId)}
                       className="btn btn-primary"
+                      disabled={whitePlayerId === userId}
                     >
-                      Resume Game
+                      Join Game
                     </button>
                   )}
-              </div>
-            ))}
+
+                  {game.status === 'in_progress' &&
+                    gameId &&
+                    (whitePlayerId === userId || blackPlayerId === userId) && (
+                      <button
+                        onClick={() => navigate(`/games/${gameId}`)}
+                        className="btn btn-primary"
+                      >
+                        Resume Game
+                      </button>
+                    )}
+                </div>
+              );
+            })}
           </div>
         )}
 

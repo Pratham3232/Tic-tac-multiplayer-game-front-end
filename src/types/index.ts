@@ -1,5 +1,6 @@
 export interface User {
-  id: string;
+  _id?: string;  // MongoDB ID
+  id?: string;   // Frontend ID (normalized from _id)
   username: string;
   email: string;
   rating: number;
@@ -26,7 +27,8 @@ export interface RegisterCredentials {
 }
 
 export interface Game {
-  id: string;
+  _id?: string;  // MongoDB ID
+  id?: string;   // Frontend ID (normalized from _id)
   whitePlayer: User | string;
   blackPlayer?: User | string;
   status: GameStatus;

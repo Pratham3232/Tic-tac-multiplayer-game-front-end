@@ -52,7 +52,8 @@ class SocketService {
   }
 
   makeMove(gameId: string, move: { from: string; to: string; piece: string; promotion?: string }): void {
-    this.socket?.emit('makeMove', { gameId, ...move });
+    console.log('📤 Sending makeMove event:', { gameId, move });
+    this.socket?.emit('makeMove', { gameId, move });
   }
 
   sendMessage(gameId: string, message: string): void {
@@ -61,8 +62,11 @@ class SocketService {
 
   // Event listeners
   onGameUpdate(callback: (game: Game) => void): void {
+    // Listen to both 'gameUpdate' and 'gameUpdated' events (backend inconsistency)
     this.socket?.on('gameUpdate', callback);
+    this.socket?.on('gameUpdated', callback);
     this.addListener('gameUpdate', callback);
+    this.addListener('gameUpdated', callback);
   }
 
   onPlayerJoined(callback: (data: { playerId: string; username: string }) => void): void {
@@ -76,8 +80,11 @@ class SocketService {
   }
 
   onChatMessage(callback: (data: { userId: string; username: string; message: string; timestamp: Date }) => void): void {
+    // Listen to both 'chatMessage' and 'newMessage' events (backend inconsistency)
     this.socket?.on('chatMessage', callback);
+    this.socket?.on('newMessage', callback);
     this.addListener('chatMessage', callback);
+    this.addListener('newMessage', callback);
   }
 
   onGameEnded(callback: (data: { result: string; winner?: string }) => void): void {

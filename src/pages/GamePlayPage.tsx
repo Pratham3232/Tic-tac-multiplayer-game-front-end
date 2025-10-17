@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Chessboard } from 'react-chessboard';
-import { Chess } from 'chess.js';
 import { gamesAPI } from '../services/api';
 import socketService from '../services/socket';
 import { useAuthStore } from '../store/authStore';
@@ -10,8 +8,7 @@ import type { Game, User } from '../types';
 export default function GamePlayPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const [game, setGame] = useState<Game | null>(null);
-  const [chess] = useState(new Chess());
-  const [position, setPosition] = useState(chess.fen());
+  const [board, setBoard] = useState<(string | null)[]>(Array(9).fill(null));
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -32,10 +29,28 @@ export default function GamePlayPage() {
 
     // Setup listeners
     socketService.onGameUpdate((updatedGame) => {
+      console.log('🎮 Game Update Received:', updatedGame);
       setGame(updatedGame);
+      
+      // Parse and update board state
       if (updatedGame.currentPosition) {
-        chess.load(updatedGame.currentPosition);
-        setPosition(updatedGame.currentPosition);
+        try {
+          // Try parsing as JSON array
+          const positions = JSON.parse(updatedGame.currentPosition);
+          console.log('📊 Parsed board positions:', positions);
+          if (Array.isArray(positions) && positions.length === 9) {
+            setBoard(positions);
+          } else {
+            console.warn('Invalid board format, using empty board');
+            setBoard(Array(9).fill(null));
+          }
+        } catch (error) {
+          console.log('⚠️ Failed to parse position, initializing empty board');
+          setBoard(Array(9).fill(null));
+        }
+      } else {
+        // No position yet, initialize empty board
+        setBoard(Array(9).fill(null));
       }
     });
 
@@ -56,11 +71,26 @@ export default function GamePlayPage() {
     
     try {
       const gameData = await gamesAPI.getGame(gameId);
+      console.log('📥 Loaded game data:', gameData);
       setGame(gameData);
       
       if (gameData.currentPosition) {
-        chess.load(gameData.currentPosition);
-        setPosition(gameData.currentPosition);
+        try {
+          const positions = JSON.parse(gameData.currentPosition);
+          console.log('📊 Initial board positions:', positions);
+          if (Array.isArray(positions) && positions.length === 9) {
+            setBoard(positions);
+          } else {
+            console.warn('Invalid board format, using empty board');
+            setBoard(Array(9).fill(null));
+          }
+        } catch (error) {
+          console.error('Failed to parse board:', error);
+          setBoard(Array(9).fill(null));
+        }
+      } else {
+        // Initialize empty board for new games
+        setBoard(Array(9).fill(null));
       }
     } catch (error) {
       console.error('Failed to load game:', error);
@@ -71,42 +101,57 @@ export default function GamePlayPage() {
     }
   };
 
-  const onDrop = (sourceSquare: string, targetSquare: string) => {
-    if (!game || !gameId) return false;
+  const handleCellClick = async (index: number) => {
+    console.log(`🖱️ Cell ${index} clicked`);
+    if (!game || !gameId) {
+      console.log('❌ No game or gameId');
+      return;
+    }
+    
+    console.log('📊 Current board state:', board);
+    console.log('🎮 Game status:', game.status);
+    
+    // Prevent multiple moves
+    if (board[index]) {
+      console.log('❌ Cell already occupied');
+      return;
+    }
+    
+    if (game.status !== 'in_progress') {
+      console.log('❌ Game not in progress, status:', game.status);
+      return;
+    }
 
     // Check if it's the player's turn
-    const isWhite = typeof game.whitePlayer === 'object' && game.whitePlayer.id === user?.id;
-    const isBlack = typeof game.blackPlayer === 'object' && game.blackPlayer.id === user?.id;
+    const userId = user?.id || user?._id;
+    const whitePlayerId = typeof game.whitePlayer === 'object' ? (game.whitePlayer.id || game.whitePlayer._id) : undefined;
+    const blackPlayerId = typeof game.blackPlayer === 'object' ? (game.blackPlayer.id || game.blackPlayer._id) : undefined;
     
-    if ((game.currentTurn === 'white' && !isWhite) || (game.currentTurn === 'black' && !isBlack)) {
-      return false;
+    const isPlayerX = whitePlayerId === userId;
+    const isPlayerO = blackPlayerId === userId;
+    
+    // X = white player, O = black player
+    if (game.currentTurn === 'white' && !isPlayerX) {
+      console.log('❌ Not your turn - waiting for X');
+      return;
+    }
+    
+    if (game.currentTurn === 'black' && !isPlayerO) {
+      console.log('❌ Not your turn - waiting for O');
+      return;
     }
 
-    try {
-      const move = chess.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: 'q', // Always promote to queen for simplicity
-      });
-
-      if (move) {
-        // Emit move via WebSocket
-        socketService.makeMove(gameId, {
-          from: sourceSquare,
-          to: targetSquare,
-          piece: move.piece,
-          promotion: move.promotion,
-        });
-
-        setPosition(chess.fen());
-        return true;
-      }
-    } catch (error) {
-      console.error('Invalid move:', error);
-      return false;
-    }
-
-    return false;
+    const currentSymbol = game.currentTurn === 'white' ? 'X' : 'O';
+    
+    console.log(`✅ Making move: ${currentSymbol} at cell ${index}`);
+    
+    // Make the move via WebSocket - DON'T update optimistically
+    // Wait for server to confirm and broadcast the update
+    socketService.makeMove(gameId, {
+      from: index.toString(),
+      to: index.toString(),
+      piece: currentSymbol,
+    });
   };
 
   const handleSendMessage = () => {
@@ -156,10 +201,36 @@ export default function GamePlayPage() {
     );
   }
 
-  const boardOrientation = 
-    typeof game.whitePlayer === 'object' && game.whitePlayer.id === user?.id
-      ? 'white'
-      : 'black';
+  const renderCell = (index: number) => {
+    const value = board[index];
+    return (
+      <button
+        key={index}
+        onClick={() => handleCellClick(index)}
+        disabled={!!value || game?.status !== 'in_progress'}
+        className={`
+          w-full h-full aspect-square flex items-center justify-center
+          text-4xl md:text-6xl font-bold
+          border-2 border-gray-400 dark:border-gray-600
+          hover:bg-gray-100 dark:hover:bg-gray-700
+          disabled:cursor-not-allowed
+          transition-colors
+          ${value === 'X' ? 'text-blue-600' : ''}
+          ${value === 'O' ? 'text-red-600' : ''}
+          ${!value && game?.status === 'in_progress' ? 'cursor-pointer' : ''}
+        `}
+      >
+        {value}
+      </button>
+    );
+  };
+
+  const userId = user?.id || user?._id;
+  const whitePlayerId = typeof game.whitePlayer === 'object' ? (game.whitePlayer.id || game.whitePlayer._id) : undefined;
+  const blackPlayerId = typeof game.blackPlayer === 'object' ? (game.blackPlayer.id || game.blackPlayer._id) : undefined;
+  
+  const isPlayerX = whitePlayerId === userId;
+  const isPlayerO = blackPlayerId === userId;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -173,62 +244,79 @@ export default function GamePlayPage() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Chess Board */}
+        {/* Tic-Tac-Toe Board */}
         <div className="lg:col-span-2">
           <div className="card">
             {/* Game Info */}
-            <div className="mb-4 flex justify-between items-center">
+            <div className="mb-6 flex justify-between items-center">
               <div>
-                <div className="font-semibold text-lg">
-                  ⚪ {getUsername(game.whitePlayer)} ({getRating(game.whitePlayer)})
+                <div className="font-semibold text-lg flex items-center gap-2">
+                  <span className="text-blue-600 text-2xl">✖</span>
+                  {getUsername(game.whitePlayer)} ({getRating(game.whitePlayer)})
+                  {isPlayerX && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">You</span>}
                 </div>
-                <div className="font-semibold text-lg">
-                  ⚫ {getUsername(game.blackPlayer)} ({getRating(game.blackPlayer)})
+                <div className="font-semibold text-lg flex items-center gap-2 mt-1">
+                  <span className="text-red-600 text-2xl">⭕</span>
+                  {getUsername(game.blackPlayer)} ({getRating(game.blackPlayer)})
+                  {isPlayerO && <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">You</span>}
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Status: <span className="font-semibold">{game.status}</span>
+                  Status: <span className="font-semibold">{game.status.replace('_', ' ')}</span>
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Turn: <span className="font-semibold capitalize">{game.currentTurn}</span>
+                  Turn: <span className="font-semibold">
+                    {game.currentTurn === 'white' ? 'X' : 'O'}
+                    {((game.currentTurn === 'white' && isPlayerX) || (game.currentTurn === 'black' && isPlayerO)) && ' (Your turn!)'}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Chessboard */}
-            <div className="max-w-[600px] mx-auto">
-              <Chessboard
-                position={position}
-                onPieceDrop={onDrop}
-                boardOrientation={boardOrientation}
-                arePiecesDraggable={game.status === 'in_progress'}
-                customBoardStyle={{
-                  borderRadius: '4px',
-                  boxShadow: '0 5px 15px rgba(0, 0, 0, 0.5)',
-                }}
-              />
+            {/* Tic-Tac-Toe Board */}
+            <div className="max-w-[500px] mx-auto">
+              <div className="grid grid-cols-3 gap-2 bg-gray-200 dark:bg-gray-800 p-2 rounded-lg">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(index => renderCell(index))}
+              </div>
             </div>
 
             {/* Game Actions */}
             {game.status === 'in_progress' && (
-              <div className="mt-4 flex justify-center">
+              <div className="mt-6 flex justify-center gap-4">
                 <button
                   onClick={handleAbandon}
                   className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                 >
-                  Abandon Game
+                  Forfeit Game
                 </button>
               </div>
             )}
 
             {game.status === 'completed' && (
-              <div className="mt-4 text-center">
+              <div className="mt-6 text-center">
                 <div className="text-2xl font-bold text-green-600">
                   Game Over!
                 </div>
                 <div className="text-lg mt-2">
-                  Result: {game.result?.replace('_', ' ')}
+                  {game.result?.includes('white') && 'X Wins! 🎉'}
+                  {game.result?.includes('black') && 'O Wins! 🎉'}
+                  {game.result?.includes('draw') && "It's a Draw! 🤝"}
+                </div>
+                {game.winner && (
+                  <div className="text-md mt-1 text-gray-600 dark:text-gray-400">
+                    Winner: {getUsername(
+                      game.winner === whitePlayerId ? game.whitePlayer : game.blackPlayer
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {game.status === 'waiting' && (
+              <div className="mt-6 text-center">
+                <div className="text-xl font-semibold text-yellow-600">
+                  Waiting for opponent to join...
                 </div>
               </div>
             )}
@@ -243,14 +331,28 @@ export default function GamePlayPage() {
             <div className="max-h-[300px] overflow-y-auto space-y-1 text-sm">
               {game.moves && game.moves.length > 0 ? (
                 game.moves.map((move, index) => (
-                  <div key={index} className="flex gap-2">
-                    <span className="text-gray-500">{Math.floor(index / 2) + 1}.</span>
-                    <span>{move.algebraicNotation}</span>
+                  <div key={index} className="flex gap-2 items-center">
+                    <span className="text-gray-500">{index + 1}.</span>
+                    <span className={move.piece === 'X' ? 'text-blue-600 font-bold' : 'text-red-600 font-bold'}>
+                      {move.piece}
+                    </span>
+                    <span>→ Cell {parseInt(move.to) + 1}</span>
                   </div>
                 ))
               ) : (
                 <div className="text-gray-500">No moves yet</div>
               )}
+            </div>
+          </div>
+
+          {/* Game Rules */}
+          <div className="card">
+            <h3 className="text-lg font-semibold mb-3">How to Play</h3>
+            <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+              <p>• Get 3 in a row to win</p>
+              <p>• X always goes first</p>
+              <p>• Click on an empty cell to place your symbol</p>
+              <p>• Win by getting 3 in a row (horizontal, vertical, or diagonal)</p>
             </div>
           </div>
 

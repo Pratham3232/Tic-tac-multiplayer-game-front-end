@@ -7,10 +7,10 @@ export default function HomePage() {
   return (
     <div className="max-w-4xl mx-auto text-center py-16">
       <h1 className="text-6xl font-bold mb-6 text-gray-900 dark:text-white">
-        ♔ Welcome to Lila Game
+        ✖⭕ Welcome to Lila Game
       </h1>
       <p className="text-xl text-gray-600 dark:text-gray-400 mb-12">
-        Play chess online with players around the world. Real-time gameplay, rating system, and more!
+        Play Tic-Tac-Toe online with players around the world. Real-time gameplay, rating system, and more!
       </p>
 
       <div className="grid md:grid-cols-3 gap-8 mb-12">
