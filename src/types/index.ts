@@ -29,6 +29,7 @@ export interface RegisterCredentials {
 export interface Game {
   _id?: string;  // MongoDB ID
   id?: string;   // Frontend ID (normalized from _id)
+  gameName?: string;
   whitePlayer: User | string;
   blackPlayer?: User | string;
   status: GameStatus;
@@ -75,6 +76,7 @@ export interface Move {
 }
 
 export interface CreateGameDto {
+  gameName?: string;
   timeControlMinutes?: number;
   timeIncrementSeconds?: number;
 }

@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gamesAPI } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import Leaderboard from '../components/Leaderboard';
 import type { Game, User } from '../types';
 
 export default function GameLobbyPage() {
   const [activeGames, setActiveGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [searchingMatch, setSearchingMatch] = useState(false);
+  const [gameName, setGameName] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [timeControl, setTimeControl] = useState({ minutes: 10, increment: 0 });
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
@@ -27,10 +31,24 @@ export default function GameLobbyPage() {
     }
   };
 
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) {
+      loadActiveGames();
+      return;
+    }
+    try {
+      const games = await gamesAPI.searchGames(searchTerm);
+      setActiveGames(games);
+    } catch (error) {
+      console.error('Failed to search games:', error);
+    }
+  };
+
   const handleCreateGame = async () => {
     setCreating(true);
     try {
       const game = await gamesAPI.createGame({
+        gameName: gameName.trim() || undefined,
         timeControlMinutes: timeControl.minutes,
         timeIncrementSeconds: timeControl.increment,
       });
@@ -45,6 +63,24 @@ export default function GameLobbyPage() {
       alert(error.response?.data?.message || error.message || 'Failed to create game');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleFindRandomMatch = async () => {
+    setSearchingMatch(true);
+    try {
+      const game = await gamesAPI.findRandomMatch();
+      const gameId = game.id || game._id;
+      if (!gameId) {
+        throw new Error('Game ID not found in response');
+      }
+      console.log('Found/created random match with ID:', gameId);
+      navigate(`/games/${gameId}`);
+    } catch (error: any) {
+      console.error('Failed to find random match:', error);
+      alert(error.response?.data?.message || error.message || 'Failed to find a match. Try creating a game instead.');
+    } finally {
+      setSearchingMatch(false);
     }
   };
 
@@ -78,66 +114,122 @@ export default function GameLobbyPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       <h1 className="text-4xl font-bold mb-8">Game Lobby</h1>
+
+      <div className="grid lg:grid-cols-4 gap-6">
+        {/* Main content - takes 3 columns */}
+        <div className="lg:col-span-3 space-y-6">
+          {/* Quick Match Button */}
+          <div className="card bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+        <h2 className="text-2xl font-semibold mb-2">🎲 Quick Match</h2>
+        <p className="mb-4 opacity-90">Find a random opponent with similar rating (±100)</p>
+        <button
+          onClick={handleFindRandomMatch}
+          className="px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
+          disabled={searchingMatch}
+        >
+          {searchingMatch ? 'Finding Match...' : '⚡ Find Random Match'}
+        </button>
+      </div>
 
       {/* Create Game Section */}
       <div className="card mb-8">
         <h2 className="text-2xl font-semibold mb-4">Create New Game</h2>
-        <div className="flex gap-4 items-end">
+        <div className="flex flex-col gap-4">
           <div>
             <label className="block text-sm font-medium mb-2">
-              Time Control (minutes)
+              Game Name (Optional)
             </label>
-            <select
-              className="input dark:bg-gray-700 dark:border-gray-600"
-              value={timeControl.minutes}
-              onChange={(e) =>
-                setTimeControl({ ...timeControl, minutes: parseInt(e.target.value) })
-              }
-            >
-              <option value={1}>1 min (Bullet)</option>
-              <option value={3}>3 min (Blitz)</option>
-              <option value={5}>5 min (Blitz)</option>
-              <option value={10}>10 min (Rapid)</option>
-              <option value={15}>15 min (Rapid)</option>
-              <option value={30}>30 min (Classical)</option>
-            </select>
+            <input
+              type="text"
+              className="input dark:bg-gray-700 dark:border-gray-600 w-full"
+              placeholder="e.g., Quick Match, Friendly Game"
+              value={gameName}
+              onChange={(e) => setGameName(e.target.value)}
+              maxLength={50}
+            />
           </div>
+          
+          <div className="flex gap-4 items-end">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Time Control (minutes)
+              </label>
+              <select
+                className="input dark:bg-gray-700 dark:border-gray-600"
+                value={timeControl.minutes}
+                onChange={(e) =>
+                  setTimeControl({ ...timeControl, minutes: parseInt(e.target.value) })
+                }
+              >
+                <option value={1}>1 min (Bullet)</option>
+                <option value={3}>3 min (Blitz)</option>
+                <option value={5}>5 min (Blitz)</option>
+                <option value={10}>10 min (Rapid)</option>
+                <option value={15}>15 min (Rapid)</option>
+                <option value={30}>30 min (Classical)</option>
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Increment (seconds)
-            </label>
-            <select
-              className="input dark:bg-gray-700 dark:border-gray-600"
-              value={timeControl.increment}
-              onChange={(e) =>
-                setTimeControl({ ...timeControl, increment: parseInt(e.target.value) })
-              }
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Increment (seconds)
+              </label>
+              <select
+                className="input dark:bg-gray-700 dark:border-gray-600"
+                value={timeControl.increment}
+                onChange={(e) =>
+                  setTimeControl({ ...timeControl, increment: parseInt(e.target.value) })
+                }
+              >
+                <option value={0}>0 sec</option>
+                <option value={2}>2 sec</option>
+                <option value={5}>5 sec</option>
+                <option value={10}>10 sec</option>
+              </select>
+            </div>
+
+            <button
+              onClick={handleCreateGame}
+              className="btn btn-primary disabled:opacity-50"
+              disabled={creating}
             >
-              <option value={0}>0 sec</option>
-              <option value={2}>2 sec</option>
-              <option value={5}>5 sec</option>
-              <option value={10}>10 sec</option>
-            </select>
+              {creating ? 'Creating...' : 'Create Game'}
+            </button>
           </div>
-
-          <button
-            onClick={handleCreateGame}
-            className="btn btn-primary disabled:opacity-50"
-            disabled={creating}
-          >
-            {creating ? 'Creating...' : 'Create Game'}
-          </button>
         </div>
       </div>
 
       {/* Active Games List */}
       <div className="card">
-        <h2 className="text-2xl font-semibold mb-4">
-          Active Games ({activeGames.length})
-        </h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-semibold">
+            Active Games ({activeGames.length})
+          </h2>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="input dark:bg-gray-700 dark:border-gray-600"
+              placeholder="Search by game name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            />
+            <button
+              onClick={handleSearch}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              🔍 Search
+            </button>
+            <button
+              onClick={loadActiveGames}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
 
         {activeGames.length === 0 ? (
           <p className="text-gray-600 dark:text-gray-400 text-center py-8">
@@ -150,6 +242,9 @@ export default function GameLobbyPage() {
               const whitePlayerId = typeof game.whitePlayer === 'object' ? (game.whitePlayer.id || game.whitePlayer._id) : undefined;
               const blackPlayerId = typeof game.blackPlayer === 'object' ? (game.blackPlayer.id || game.blackPlayer._id) : undefined;
               const userId = user?.id || user?._id;
+              const isMyGame = whitePlayerId === userId || blackPlayerId === userId;
+              const canJoin = game.status === 'waiting' && !isMyGame;
+              const canResume = game.status === 'in_progress' && isMyGame;
 
               return (
                 <div
@@ -157,6 +252,11 @@ export default function GameLobbyPage() {
                   className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
                 >
                   <div className="flex-1">
+                    {game.gameName && (
+                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-1">
+                        {game.gameName}
+                      </div>
+                    )}
                     <div className="flex items-center gap-4">
                       <div>
                         <div className="font-semibold">
@@ -174,26 +274,23 @@ export default function GameLobbyPage() {
                     </div>
                   </div>
 
-                  {game.status === 'waiting' && gameId && (
+                  {canJoin && gameId && (
                     <button
                       onClick={() => handleJoinGame(gameId)}
                       className="btn btn-primary"
-                      disabled={whitePlayerId === userId}
                     >
                       Join Game
                     </button>
                   )}
 
-                  {game.status === 'in_progress' &&
-                    gameId &&
-                    (whitePlayerId === userId || blackPlayerId === userId) && (
-                      <button
-                        onClick={() => navigate(`/games/${gameId}`)}
-                        className="btn btn-primary"
-                      >
-                        Resume Game
-                      </button>
-                    )}
+                  {canResume && gameId && (
+                    <button
+                      onClick={() => navigate(`/games/${gameId}`)}
+                      className="btn btn-primary"
+                    >
+                      Resume Game
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -208,5 +305,12 @@ export default function GameLobbyPage() {
         </button>
       </div>
     </div>
+
+    {/* Sidebar - Leaderboard */}
+    <div className="lg:col-span-1">
+      <Leaderboard />
+    </div>
+  </div>
+</div>
   );
 }

@@ -112,6 +112,18 @@ export const gamesAPI = {
     return normalized;
   },
 
+  searchGames: async (searchTerm: string): Promise<Game[]> => {
+    const { data } = await api.get(`/games?search=${encodeURIComponent(searchTerm)}`);
+    const unwrapped = unwrapResponse(data);
+    return Array.isArray(unwrapped) ? unwrapped.map(normalizeGame) : [];
+  },
+
+  findRandomMatch: async (): Promise<Game> => {
+    const { data } = await api.post('/games/random-match');
+    const unwrapped = unwrapResponse(data);
+    return normalizeGame(unwrapped);
+  },
+
   getGame: async (id: string): Promise<Game> => {
     const { data } = await api.get(`/games/${id}`);
     const unwrapped = unwrapResponse(data);
@@ -159,6 +171,18 @@ export const usersAPI = {
     const { data } = await api.get('/users');
     const unwrapped = unwrapResponse(data);
     return Array.isArray(unwrapped) ? unwrapped.map(normalizeUser) : [];
+  },
+
+  getLeaderboard: async (limit: number = 5): Promise<User[]> => {
+    const { data } = await api.get(`/users/leaderboard?limit=${limit}`);
+    const unwrapped = unwrapResponse(data);
+    return Array.isArray(unwrapped) ? unwrapped.map(normalizeUser) : [];
+  },
+
+  getProfile: async (): Promise<User> => {
+    const { data } = await api.get('/users/profile');
+    const unwrapped = unwrapResponse(data);
+    return normalizeUser(unwrapped);
   },
 };
 

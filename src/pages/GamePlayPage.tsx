@@ -88,7 +88,7 @@ export default function GamePlayPage() {
       } catch (error) {
         console.error('Polling error:', error);
       }
-    }, 1000); // Poll every 1 second
+    }, 500); // Poll every 0.5 seconds
 
     return () => {
       if (gameId) {

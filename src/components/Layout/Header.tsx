@@ -1,10 +1,29 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import { usersAPI } from '../../services/api';
 import socketService from '../../services/socket';
 
 export default function Header() {
-  const { isAuthenticated, user, logout } = useAuthStore();
+  const { isAuthenticated, user, logout, updateUser } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    // Refresh user profile every 5 seconds to get updated rating
+    const refreshProfile = async () => {
+      try {
+        const updatedUser = await usersAPI.getProfile();
+        updateUser(updatedUser);
+      } catch (error) {
+        console.error('Failed to refresh user profile:', error);
+      }
+    };
+
+    const interval = setInterval(refreshProfile, 5000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, user?.id, updateUser]);
 
   const handleLogout = () => {
     socketService.disconnect();
